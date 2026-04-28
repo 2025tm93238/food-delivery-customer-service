@@ -1,0 +1,343 @@
+openapi: 3.0.3
+
+info:
+  title: Customer Service API
+  version: "1.0.0"
+  description: |
+    Manages customers and their delivery addresses.
+    All endpoints are versioned under `/v1`.
+  contact:
+    name: Food Delivery System
+
+servers:
+  - url: http://localhost:3001
+    description: Local (direct)
+  - url: http://localhost:3000
+    description: Local (via API Gateway)
+
+tags:
+  - name: Health
+  - name: Customers
+  - name: Addresses
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health check
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: UP }
+                  service: { type: string, example: customer-service }
+                  timestamp: { type: string, format: date-time }
+
+  /v1/customers:
+    post:
+      tags: [Customers]
+      summary: Create a new customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    get:
+      tags: [Customers]
+      summary: List customers with pagination & filters
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - in: query
+          name: name
+          schema: { type: string }
+          description: Case-insensitive partial match
+        - in: query
+          name: email
+          schema: { type: string, format: email }
+        - in: query
+          name: phone
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerList"
+
+  /v1/customers/{id}:
+    parameters:
+      - $ref: "#/components/parameters/CustomerId"
+    get:
+      tags: [Customers]
+      summary: Get customer by ID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerEnvelope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Customers]
+      summary: Update a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    delete:
+      tags: [Customers]
+      summary: Delete a customer (cascades to addresses)
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/customers/{customerId}/addresses:
+    parameters:
+      - in: path
+        name: customerId
+        required: true
+        schema: { type: integer }
+    post:
+      tags: [Addresses]
+      summary: Add an address for a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddressCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    get:
+      tags: [Addresses]
+      summary: List addresses for a customer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Address"
+
+  /v1/addresses/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Addresses]
+      summary: Get address by ID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressEnvelope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Addresses]
+      summary: Update an address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddressUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Addresses]
+      summary: Delete an address
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  parameters:
+    Page:
+      in: query
+      name: page
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+    CustomerId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer }
+
+  schemas:
+    Customer:
+      type: object
+      properties:
+        customer_id: { type: integer, example: 1 }
+        name: { type: string, example: "Asha Rao" }
+        email: { type: string, format: email, example: "asha@example.com" }
+        phone: { type: string, example: "9900112233" }
+        created_at: { type: string, format: date-time }
+
+    CustomerCreate:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100, example: "Asha Rao" }
+        email: { type: string, format: email, example: "asha@example.com" }
+        phone: { type: string, pattern: "^\\d{10}$", example: "9900112233" }
+
+    CustomerUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: string, format: email }
+        phone: { type: string, pattern: "^\\d{10}$" }
+
+    CustomerEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Customer"
+
+    CustomerList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Customer" }
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 10 }
+        total: { type: integer, example: 42 }
+        totalPages: { type: integer, example: 5 }
+
+    Address:
+      type: object
+      properties:
+        address_id: { type: integer, example: 1 }
+        customer_id: { type: integer, example: 1 }
+        line1: { type: string, example: "221B Baker Street" }
+        area: { type: string, example: "Marylebone", nullable: true }
+        city: { type: string, example: "Bengaluru" }
+        pincode: { type: string, example: "560001", nullable: true }
+        created_at: { type: string, format: date-time }
+
+    AddressCreate:
+      type: object
+      required: [line1, city]
+      properties:
+        line1: { type: string, minLength: 1, maxLength: 200 }
+        area: { type: string, maxLength: 100, nullable: true }
+        city: { type: string, minLength: 1, maxLength: 100 }
+        pincode: { type: string, pattern: "^\\d{6}$", nullable: true }
+
+    AddressUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        line1: { type: string, minLength: 1, maxLength: 200 }
+        area: { type: string, maxLength: 100, nullable: true }
+        city: { type: string, minLength: 1, maxLength: 100 }
+        pincode: { type: string, pattern: "^\\d{6}$", nullable: true }
+
+    AddressEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Address"
+
+    Error:
+      type: object
+      required: [code, message, correlationId]
+      properties:
+        code: { type: string, example: VALIDATION_ERROR }
+        message: { type: string, example: "\"email\" must be a valid email" }
+        correlationId: { type: string, format: uuid }
+
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: Conflict with existing resource
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
